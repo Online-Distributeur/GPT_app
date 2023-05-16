@@ -1,64 +1,55 @@
-import requests
-import openai
 import os
+import openai
+import requests
+from airtable import Airtable
 from dotenv import load_dotenv
 
 load_dotenv()
 Airtable_key = os.getenv("KEYSTORE_KEY_OD")
-Airtable_app = os.getenv("KEYSTORE_APP")
+Airtable_base = os.getenv("KEYSTORE_APP")
 
-# Set API keys for ChatGPT and webshop
+# Set API keys for ChatGPT
 openai.api_key = os.getenv("OPENAI_KEY")
 
-shopID = #default = 273092" else = UserInput
+shopID = # default = 273092" else = UserInput
 
+airtable = Airtable(Airtable_base, 'AppInstalls', api_key=Airtable_key)
 
-airtable_table = "AppInstalls"
-column1 = "{AppName}= "
-column2 = "{shop_id}= "
-filter1 = f"{column1} 'GPT_App'"
-filter2 = f"{column2}'{shopID}'"
+# Filter records
+records = airtable.search('AppName', 'GPT_App')
 
-#get the data from Airtable API
-response = airtable_api.request(
-    "GET",
-    airtable_table,
-    params={"filterByFormula": f"AND({filter1}, {filter2})"},
-)
+# Find record that matches shopID
+record = next((record for record in records if record['fields'].get('shop_id') == shopID), None)
 
-## in the response fields there should be a value "api_key" and a value "api_secret"
+if record:
+    # store those here
+    api_key = record['fields'].get('api_key')
+    api_secret = record['fields'].get('api_secret')
+    cluster = "webshopapp"
 
+    prompt = " default text here and user input"
 
-# store those here
-api_key = respnse.api_key
-api_secret = respnse.api_secret
-cluster = "webshopapp"
+    # Function to generate content based on user input
+    def generate_content_from_input(data):
+        generated_text = openai.Completion.create(
+            engine="text-davinci-002",
+            prompt=prompt,
+            max_tokens=1024,
+            n=1,
+            stop=None,
+            temperature=0.9,
+        ).choices[0].text
+        return generated_text
 
-prompt = " default text here and user input"
+    #get product
+    response = requests.get(f'https://{api_key}:{api_secret}@api.{cluster}.com/nl/catalog/142627199.json')
 
-# Function to generate content based on user input
-def generate_content_from_input(data):
-    prompt = prompt
-    generated_text = openai.Completion.create(
-        engine="text-davinci-002",
-        prompt=prompt,
-        max_tokens=1024,
-        n=1,
-        stop=None,
-        temperature=0.9,
-    ).choices[0].text
-    return generated_text
+    # Example usage of the functions
+    data = response.text
 
-#get product
-response = requests.get(f'https://{api_key}:{api_secret}@api.{cluster}.com/nl/catalog/142627199.json')
+    # Generate content based on user input
+    generated_content = generate_content_from_input(data)
 
-# Example usage of the functions
-data = response.text
-
-#keywords = ["Geschikt voor in/outdoor", "Eenvoudig in onderhoud" , "Gemaakt van duurzame materialen" , "Weersbestendig"]
-
-
-# Generate content based on user input
-generated_content = generate_content_from_input(data)
-
-print(generated_content)
+    print(generated_content)
+else:
+    print(f"No record found for shopID: {shopID}")

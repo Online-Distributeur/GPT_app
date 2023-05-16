@@ -1,55 +1,46 @@
 import os
 import openai
-import requests
-from airtable import Airtable
+from utils import get_products_with_category, get_titles_with_depth, generate_content_from_input
+from pyairtable import Table
+from pyairtable.formulas import match
 from dotenv import load_dotenv
 
 load_dotenv()
-Airtable_key = os.getenv("KEYSTORE_KEY_OD")
-Airtable_base = os.getenv("KEYSTORE_APP")
+airtable_key = os.getenv("KEYSTORE_KEY")
+airtable_base = os.getenv("KEYSTORE_APP")
 
 # Set API keys for ChatGPT
 openai.api_key = os.getenv("OPENAI_KEY")
 
-shopID = # default = 273092" else = UserInput
+shopID = 273092
+category_id = 11977379
+AppName ='GPT_Content'
 
-airtable = Airtable(Airtable_base, 'AppInstalls', api_key=Airtable_key)
+airtable = Table(airtable_key, airtable_base, "AppInstalls")
+formula = match({"AppName": AppName, "shop_id": shopID})
+record = airtable.first(formula=formula)
 
-# Filter records
-records = airtable.search('AppName', 'GPT_App')
-
-# Find record that matches shopID
-record = next((record for record in records if record['fields'].get('shop_id') == shopID), None)
 
 if record:
     # store those here
     api_key = record['fields'].get('api_key')
     api_secret = record['fields'].get('api_secret')
-    cluster = "webshopapp"
 
-    prompt = " default text here and user input"
+    #get products
+    response = get_products_with_category(api_key, api_secret, category_id)
 
-    # Function to generate content based on user input
-    def generate_content_from_input(data):
-        generated_text = openai.Completion.create(
-            engine="text-davinci-002",
-            prompt=prompt,
-            max_tokens=1024,
-            n=1,
-            stop=None,
-            temperature=0.9,
-        ).choices[0].text
-        return generated_text
+    for product in response:
 
-    #get product
-    response = requests.get(f'https://{api_key}:{api_secret}@api.{cluster}.com/nl/catalog/142627199.json')
+        product_name = product['title']
 
-    # Example usage of the functions
-    data = response.text
+        main_cat = get_titles_with_depth(product['categories'], 1, category_id)
+        print(main_cat, product_name)
 
-    # Generate content based on user input
-    generated_content = generate_content_from_input(data)
+        prompt = f"Je bent de copywriter voor de webshop Vloerkledenopvinyl en je wil de beste beschrijving van een product maken. Het doel van de beschrijving is goed scoren bij Google, maar het is ook belangrijk dat de klanten die dit lezen enthousiast worden van het product. Webshop Vloerkledenopvinyl maakt unieke vloerkleden, placemats, keukenlopers en inductiebeschermers gemaakt van vinyl. De producten worden allemaal in een eigen werkplaats in Nederland gemaakt van gerecycled polyester. Unieke eigenschappen van vinyl zijn een lange levensduur, slijtvast en makkelijk schoon te maken. Schrijf een unieke productbeschrijving van min. 600 en max. 800 tekens voor webshop Vloerkledenopvinyl in HTML-formaat en verwerk daarin het volgende: 1. Artikel is: {product_name} 2. Productcategorie: {main_cat} 3. Toon: informerend en overtuigend 4. Voeg na de unieke productbeschrijving van max. 800 karakters de volgende lijst in bulletpoints toe in HTML-formaat: Specificaties: - Slijtvast - Onverwoestbaar - Geschikt voor binnen en buiten - Hygiënisch - Makkelijk te reinigen - Vochtbestendig - Kleurvast - Brandveilig - Makkelijk oprolbaar"
 
-    print(generated_content)
+        # Generate content based on user input
+        generated_content = generate_content_from_input(prompt)
+
+        print(generated_content)
 else:
     print(f"No record found for shopID: {shopID}")

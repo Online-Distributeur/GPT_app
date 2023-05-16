@@ -12,20 +12,21 @@ openai.api_key = os.getenv("OPENAI_KEY")
 
 
 airtable_table = "AppInstalls"
-        column1 = "{AppName}= "
-        column2 = "{shop_id}= "
-        filter1 = f"{column1} 'yotpo'"
-        filter2 = f"{column2}'{shopID}'"
+column1 = "{AppName}= "
+column2 = "{shop_id}= "
+filter1 = f"{column1} 'GPT_App'"
+filter2 = f"{column2}'{shopID}'"
 
-        r = airtable_api.request(
-            "GET",
-            airtable_table,
-            params={"filterByFormula": f"AND({filter1}, {filter2})"},
-        )
-        if not r.ok:
-            with open("app/yotpo/webhooklog.log", "a") as f:
-                f.write(
-                    f"{now} webhook zonder app geinstalleerd shop = {shopID}\n {filter1} {filter2}"
+
+r = airtable_api.request(
+    "GET",
+    airtable_table,
+    params={"filterByFormula": f"AND({filter1}, {filter2})"},
+)
+if not r.ok:
+    with open("app/yotpo/webhooklog.log", "a") as f:
+        f.write(
+            f"{now} webhook zonder app geinstalleerd shop = {shopID}\n {filter1} {filter2}"
                 )
 
 # Vul hier je eigen API-sleutel, API-geheim en cluster in

@@ -1,9 +1,11 @@
 import requests
 import time
 import openai
+import logging
 
 
-def get_products_with_category(api_key, api_secret, ToDo_category_id, done_cat_id, limit=250):
+
+def get_products_with_category(client, api_key, api_secret, ToDo_category_id, done_cat_id, limit=250):
     # Initialize the page
     page = 1
     all_products = []
@@ -14,7 +16,7 @@ def get_products_with_category(api_key, api_secret, ToDo_category_id, done_cat_i
             f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/catalog.json',
             params={'limit': limit, 'page': page}
         )
-        
+        logging.info(f'Getting catalog page {page}')
         # Check if request was successful
         if response.status_code == 200:
             data = response.json()
@@ -37,8 +39,9 @@ def get_products_with_category(api_key, api_secret, ToDo_category_id, done_cat_i
             
             # Sleep to avoid hitting rate limit
             time.sleep(1)
+            
         else:
-            print(f"Failed to fetch products. Status code: {response.status_code}")
+            logging.info(f"Failed to fetch products. Status code: {response.status_code}")
             break
 
     return all_products

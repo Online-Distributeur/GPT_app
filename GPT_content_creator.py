@@ -8,7 +8,7 @@ from pyairtable.formulas import match
 from dotenv import load_dotenv
 import sys
 import json
-import logging.config
+import logging
 
 load_dotenv()
 airtable_key = os.getenv("KEYSTORE_KEY")
@@ -30,15 +30,13 @@ with open(f'{client}/config.json', "r") as file:
 #set up variables from config file
 shopID = config_file['CLIENTS'][client]['PRIMARY']['ID']
 language = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
-logging_dict = config_file['CLIENTS'][client]['logging']
 gpt_service = config_file['CLIENTS'][client]['services'][0]
 ToDo_category_id = gpt_service['properties']['ToDo_category_id']
 done_cat_id = gpt_service['properties']['done_cat_id']
 
-
 # Logging configuration
-logging.config.dictConfig(logging_dict)
-logging.basicConfig(filename=f'{client}/gpt_scrpt.log')
+logging.basicConfig(filename=f'{client}/gpt_scrpt.log',level=logging.INFO)
+logging.info(f'started run')
 
 
 airtable = Table(airtable_key, airtable_base, "AppInstalls")
@@ -51,7 +49,7 @@ if record:
     api_secret = record['fields'].get('api_secret')
 
     # Get products
-    response = get_products_with_category(api_key, api_secret, ToDo_category_id, done_cat_id)
+    response = get_products_with_category(client, api_key, api_secret, ToDo_category_id, done_cat_id)
 
     for product in response:
 

@@ -6,7 +6,9 @@ from utils import get_products_with_category, get_titles_with_depth, generate_co
 from pyairtable import Table
 from pyairtable.formulas import match
 from dotenv import load_dotenv
-import logging
+import sys
+import json
+import logging.config
 
 load_dotenv()
 airtable_key = os.getenv("KEYSTORE_KEY")
@@ -15,16 +17,29 @@ airtable_base = os.getenv("KEYSTORE_APP")
 # Set API keys for ChatGPT
 openai.api_key = os.getenv("OPENAI_KEY")
 
-# Set variables
-shopID = 273092
-write_to = "Lightspeed_API"
+# The argument is accessible through the sys.argv list
+client = sys.argv[1] if len(sys.argv) > 1 else None
+
+with open(f'{client}/config.json', "r") as file:
+    # Read the contents of the file
+    file_contents = file.read()
+
+    # Parse the file contents as JSON
+    config_file = json.loads(file_contents)
+
+#set up variables from config file
+shopID = config_file['CLIENTS'][client]['PRIMARY']['ID']
+language = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
+logging_dict = config_file['CLIENTS'][client]['logging']
+gpt_service = config_file['CLIENTS'][client]['services'][0]
+ToDo_category_id = gpt_service['properties']['ToDo_category_id']
+done_cat_id = gpt_service['properties']['done_cat_id']
+
 
 # Logging configuration
-logging.basicConfig(filename='script.log', level=logging.INFO)
+logging.config.dictConfig(logging_dict)
+logging.basicConfig(filename=f'{client}/gpt_scrpt.log')
 
-if write_to == "Lightspeed_API":
-    ToDo_category_id = 11977379
-    done_cat_id = 11962437
 
 airtable = Table(airtable_key, airtable_base, "AppInstalls")
 formula = match({"AppName": 'GPT_Content', "shop_id": shopID})

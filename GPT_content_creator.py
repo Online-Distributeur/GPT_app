@@ -31,6 +31,7 @@ with open(f'{client}/config.json', "r") as file:
 shopID = config_file['CLIENTS'][client]['PRIMARY']['ID']
 language = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
 gpt_service = config_file['CLIENTS'][client]['services'][0]
+prompt = gpt_service['properties']['prompt']
 ToDo_category_id = gpt_service['properties']['ToDo_category_id']
 done_cat_id = gpt_service['properties']['done_cat_id']
 
@@ -38,7 +39,7 @@ done_cat_id = gpt_service['properties']['done_cat_id']
 logging.basicConfig(filename=f'{client}/gpt_scrpt.log',level=logging.INFO)
 logging.info(f'started run')
 
-
+# get api keys from airtable
 airtable = Table(airtable_key, airtable_base, "AppInstalls")
 formula = match({"AppName": 'GPT_Content', "shop_id": shopID})
 record = airtable.first(formula=formula)
@@ -60,7 +61,7 @@ if record:
 
         logging.info(f"Processing product: {product_name} | Main category: {main_cat}")
 
-        prompt = f"Je bent de copywriter voor de webshop Vloerkledenopvinyl en je wil de beste beschrijving van een product maken. Het doel van de beschrijving is goed scoren bij Google, maar het is ook belangrijk dat de klanten die dit lezen enthousiast worden van het product. Webshop Vloerkledenopvinyl maakt unieke vloerkleden, placemats, keukenlopers en inductiebeschermers gemaakt van vinyl. De producten worden allemaal in een eigen werkplaats in Nederland gemaakt van gerecycled polyester. Unieke eigenschappen van vinyl zijn een lange levensduur, slijtvast en makkelijk schoon te maken. Schrijf een unieke productbeschrijving van min. 600 en max. 800 tekens voor webshop Vloerkledenopvinyl in HTML-formaat en verwerk daarin het volgende: 1. Artikel is: {product_name} 2. Productcategorie: {main_cat} 3. Toon: informerend en overtuigend 4. Voeg na de unieke productbeschrijving van max. 800 karakters de volgende lijst in bulletpoints toe in HTML-formaat: Specificaties: - Slijtvast - Onverwoestbaar - Geschikt voor binnen en buiten - Hygiënisch - Makkelijk te reinigen - Vochtbestendig - Kleurvast - Brandveilig - Makkelijk oprolbaar"
+        prompt.format(product_name=product_name, main_cat=main_cat)
 
         # Generate content based on user input
         generated_content = generate_content_from_input(prompt)

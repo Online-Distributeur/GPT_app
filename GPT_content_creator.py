@@ -31,7 +31,7 @@ with open(f'/home/matser/Dev/GPT_app/{client}/config.json', "r") as file:
 shopID = config_file['CLIENTS'][client]['PRIMARY']['ID']
 language = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
 gpt_service = config_file['CLIENTS'][client]['services'][0]
-prompt = gpt_service['properties']['prompt']
+prompt_input = gpt_service['properties']['prompt']
 ToDo_category_id = gpt_service['properties']['ToDo_category_id']
 done_cat_id = gpt_service['properties']['done_cat_id']
 
@@ -78,13 +78,13 @@ if record:
         logging.info(f"Processing product: {product_name} | Main category: {main_cat}")
 
         if gpt_service['properties']['use_brand']:
-            prompt = prompt.format(product_name=product_name, main_cat=main_cat, brand=brand, brand_content=brand_content)
-            generated_content = generate_content_from_input(prompt)
+            prompt = prompt_input.format(product_name=product_name, main_cat=main_cat, brand=brand, brand_content=brand_content)
         
         else:
-            prompt = prompt.format(product_name=product_name, main_cat=main_cat)
-            generated_content = generate_content_from_input(prompt)
-
+            prompt = prompt_input.format(product_name=product_name, main_cat=main_cat)
+            
+        generated_content = generate_content_from_input(prompt)
+        
         payload = {
             "product": {
                 "content": generated_content

@@ -3,7 +3,7 @@ import time
 import openai
 
 
-def get_products_with_category(api_key, api_secret, category_id, limit=250):
+def get_products_with_category(api_key, api_secret, ToDo_category_id, done_cat_id, limit=250):
     # Initialize the page
     page = 1
     all_products = []
@@ -22,7 +22,8 @@ def get_products_with_category(api_key, api_secret, category_id, limit=250):
             # Filter products by category
             products = [
                 product for product in data['products']
-                if str(category_id) in product['categories']
+                if str(ToDo_category_id) in product['categories']
+                if str(done_cat_id) not in product['categories']
             ]
             
             all_products.extend(products)

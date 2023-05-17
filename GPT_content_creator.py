@@ -20,7 +20,7 @@ openai.api_key = os.getenv("OPENAI_KEY")
 # The argument is accessible through the sys.argv list
 client = sys.argv[1] if len(sys.argv) > 1 else None
 
-with open(f'{client}/config.json', "r") as file:
+with open(f'/home/matser/Dev/GPT_app/{client}/config.json', "r") as file:
     # Read the contents of the file
     file_contents = file.read()
 
@@ -36,7 +36,12 @@ ToDo_category_id = gpt_service['properties']['ToDo_category_id']
 done_cat_id = gpt_service['properties']['done_cat_id']
 
 # Logging configuration
-logging.basicConfig(filename=f'{client}/gpt_scrpt.log',level=logging.INFO)
+logging.basicConfig(
+    filename=f'/home/matser/Dev/GPT_app/{client}/gpt_script.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logging.info(f'started run')
 
 # get api keys from airtable
@@ -56,12 +61,26 @@ if record:
 
         product_name = product['title']
         product_id = product['id']
+        if gpt_service['properties']['use_brand']:
+            try:
+                brand_id = product['brand']['id']
+                brand = product['brand']['title']
+                brand_url = f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/brands/{brand_id}.json'
+                brand_response = requests.request("GET", brand_url)
+                brand_data = brand_response.json()
+                brand_content = brand_data['brand']['content']
+            except TypeError:
+                logging.info(f'No brand set for {product_id}')
+                gpt_service['properties']['use_brand'] = False
 
         main_cat = get_titles_with_depth(product['categories'], 1, ToDo_category_id)
 
         logging.info(f"Processing product: {product_name} | Main category: {main_cat}")
 
-        prompt.format(product_name=product_name, main_cat=main_cat)
+        if gpt_service['properties']['use_brand']:
+            prompt = prompt.format(product_name=product_name, main_cat=main_cat, brand=brand, brand_content=brand_content)
+        else:
+            prompt = prompt.format(product_name=product_name, main_cat=main_cat, brand="skip the brand part in this case")
 
         # Generate content based on user input
         generated_content = generate_content_from_input(prompt)
@@ -86,14 +105,23 @@ if record:
 
         response = requests.request("PUT", url, json=payload)
 
-        url_cat = f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/categories/products.json'
+        if response.ok:
+            logging.info(f"updated content for product: {product_id}") 
 
-        # Throttle requests to one per second
-        time.sleep(1)
+            url_cat = f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/categories/products.json'
+            
+            # Throttle requests to one per second
+            time.sleep(1)
 
-        response = requests.request("POST", url_cat, json=payload_cat)
+            response = requests.request("POST", url_cat, json=payload_cat)
 
-        logging.info(f"Processed product: {product_id} | Main category: {main_cat}")
+            if response.ok:
+
+                logging.info(f"Processed product: {product_id} | Main category: {main_cat}")
+            else:
+                logging.error(f"issue with cat_product: {product_id} | Main category: {main_cat}, {response.text}")
+        else:
+            logging.error(f"issue with put product: {product_id} | Main category: {main_cat}, {response.text}")
 
 else:
     logging.warning(f"No record found for shopID: {shopID}")

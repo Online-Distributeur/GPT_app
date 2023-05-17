@@ -71,7 +71,7 @@ if record:
                 brand_content = brand_data['brand']['content']
             except TypeError:
                 logging.info(f'No brand set for {product_id}')
-                gpt_service['properties']['use_brand'] = False
+                continue
 
         main_cat = get_titles_with_depth(product['categories'], 1, ToDo_category_id)
 
@@ -79,11 +79,11 @@ if record:
 
         if gpt_service['properties']['use_brand']:
             prompt = prompt.format(product_name=product_name, main_cat=main_cat, brand=brand, brand_content=brand_content)
+            generated_content = generate_content_from_input(prompt)
+        
         else:
-            prompt = prompt.format(product_name=product_name, main_cat=main_cat, brand="skip the brand part in this case")
-
-        # Generate content based on user input
-        generated_content = generate_content_from_input(prompt)
+            prompt = prompt.format(product_name=product_name, main_cat=main_cat)
+            generated_content = generate_content_from_input(prompt)
 
         payload = {
             "product": {
@@ -117,7 +117,7 @@ if record:
 
             if response.ok:
 
-                logging.info(f"Processed product: {product_id} | Main category: {main_cat}")
+                logging.info(f"Processed product: {product_id} | Main category: {main_cat} and with prompt: {prompt}")
             else:
                 logging.error(f"issue with cat_product: {product_id} | Main category: {main_cat}, {response.text}")
         else:

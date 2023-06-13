@@ -2,7 +2,7 @@ import requests
 import time
 import os
 import openai
-from utils import get_products_with_category, get_titles_with_depth, generate_content_from_input, get_products_with_diff
+from utils import get_products_with_category, get_titles_with_depth, generate_content_from_input, get_products_with_diff, update_product
 from pyairtable import Table
 from pyairtable.formulas import match
 from dotenv import load_dotenv
@@ -30,10 +30,10 @@ with open(f'{client}/config.json', "r") as file:
 
 #set up variables from config file
 shopID = config_file['CLIENTS'][client]['PRIMARY']['ID']
-languages = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
+languages = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE']
 gpt_service = config_file['CLIENTS'][client]['services'][0]
-prompt_input = gpt_service['properties']['prompt']
 use_shopsync = gpt_service['properties']['use_shopsync']
+translate_to = gpt_service['properties']['translate_to']
 shopsync_client = gpt_service['properties']['shopsync_client']
 
 ToDo_category_id = gpt_service['properties']['ToDo_category_id']
@@ -93,6 +93,8 @@ api_secret = shop_credentials['fields'].get('api_secret')
 
 for language in languages:
 
+    prompt_input = gpt_service['properties']['prompt'][language]
+
     logging.info(f"Processing language: {language}")
 
     if use_shopsync:
@@ -138,33 +140,37 @@ for language in languages:
             prompt = prompt_input.format(product_name=product_name, main_cat=main_cat)
             
         generated_content = generate_content_from_input(prompt)
-        
-        payload = {
-            "product": {
-                "content": generated_content
-            }
-        }
 
-        payload_cat = {
-            "categoriesProduct": {
-                "category": done_cat_id,
-                "product": product_id
-            }
-        }
-
-        url = f'https://{api_key}:{api_secret}@api.webshopapp.com/{language}/products/{product_id}.json'
-
-        # Throttle requests to one per second
-        time.sleep(1)
-
-        response = requests.request("PUT", url, json=payload)
+        response = update_product(api_key, api_secret, language, product_id, generated_content)
 
         if response.ok:
-            logging.info(f"updated content for product: {product_id}") 
-            
+
             if use_shopsync:
                 continue
+        
+            logging.info(f"updated content for product: {product_id}") 
 
+            if translate_to:
+
+                language_list = translate_to.split(',')
+                for lang in language_list:
+                    promt = f'Vertaal deze tekst naar {lang}: {generated_content}'
+                    translated_content = generate_content_from_input(prompt)
+
+                    response_trans = update_product(api_key, api_secret, lang, product_id, translated_content)
+
+                    if response_trans.ok:
+                        logging.info(f"translated content for product: {product_id}") 
+
+            # add product to done category
+            logging.info(f"adding product to done category: {product_id}")
+            payload_cat = {
+                "categoriesProduct": {
+                    "category": done_cat_id,
+                    "product": product_id
+                }
+                    }
+                
             url_cat = f'https://{api_key}:{api_secret}@api.webshopapp.com/{language}/categories/products.json'
             
             # Throttle requests to one per second

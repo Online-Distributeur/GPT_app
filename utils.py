@@ -118,3 +118,23 @@ def generate_content_from_input(prompt):
             temperature=0.9,
         ).choices[0].text
     return generated_text
+
+
+def update_product(api_key,api_secret, language, product_id, content):
+    #create payload
+
+    payload = {
+        "product": {
+            "content": content
+        }
+    }
+    # Update the product
+
+    url = f'https://{api_key}:{api_secret}@api.webshopapp.com/{language}/products/{product_id}.json'
+
+    # Throttle requests to one per second
+    time.sleep(1)
+
+    response = requests.request("PUT", url, json=payload)
+
+    return response

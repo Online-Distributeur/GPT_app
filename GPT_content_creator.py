@@ -2,13 +2,14 @@ import requests
 import time
 import os
 import openai
-from utils import get_products_with_category, get_titles_with_depth, generate_content_from_input
+from utils import get_products_with_category, get_titles_with_depth, generate_content_from_input, get_products_with_diff
 from pyairtable import Table
 from pyairtable.formulas import match
 from dotenv import load_dotenv
 import sys
 import json
 import logging
+import pandas as pd
 
 load_dotenv()
 airtable_key = os.getenv("KEYSTORE_KEY")
@@ -20,7 +21,7 @@ openai.api_key = os.getenv("OPENAI_KEY")
 # The argument is accessible through the sys.argv list
 client = sys.argv[1] if len(sys.argv) > 1 else None
 
-with open(f'/home/matser/Dev/GPT_app/{client}/config.json', "r") as file:
+with open(f'{client}/config.json', "r") as file:
     # Read the contents of the file
     file_contents = file.read()
 
@@ -29,15 +30,20 @@ with open(f'/home/matser/Dev/GPT_app/{client}/config.json', "r") as file:
 
 #set up variables from config file
 shopID = config_file['CLIENTS'][client]['PRIMARY']['ID']
-language = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
+languages = config_file['CLIENTS'][client]['PRIMARY']['LANGUAGE'][0]
 gpt_service = config_file['CLIENTS'][client]['services'][0]
 prompt_input = gpt_service['properties']['prompt']
+use_shopsync = gpt_service['properties']['use_shopsync']
+shopsync_client = gpt_service['properties']['shopsync_client']
+
 ToDo_category_id = gpt_service['properties']['ToDo_category_id']
 done_cat_id = gpt_service['properties']['done_cat_id']
 
+current_directory = os.getcwd() 
+
 # Logging configuration
 logging.basicConfig(
-    filename=f'/home/matser/Dev/GPT_app/{client}/gpt_script.log',
+    filename=f'{current_directory}/{client}/gpt_script.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
@@ -47,25 +53,66 @@ logging.info(f'started run')
 # get api keys from airtable
 airtable = Table(airtable_key, airtable_base, "AppInstalls")
 formula = match({"AppName": 'GPT_Content', "shop_id": shopID})
-record = airtable.first(formula=formula)
+shop_credentials = airtable.first(formula=formula)
 
-if record:
+if use_shopsync:
+    shopsync_folder = gpt_service['properties']['shopsync_folder']
+    # Define the file path
+    shopsync_config_file = f'{shopsync_folder}/{shopsync_client}/config.json'
+    with open(shopsync_config_file, "r") as file:
+        # Read the contents of the file
+        file_contents = file.read()
+
+        # Parse the file contents as JSON
+        shopsync_config_file = json.loads(file_contents)
+    shop_id_primary = shopsync_config_file['CLIENTS'][shopsync_client]['PRIMARY']['ID']
+
+    # Read the CSV data
+    file_path = f'{shopsync_folder}/{shopsync_client}/{shopsync_client}_merged_no_duplicates.csv'
+
+    matched_products_shopsync = pd.read_csv(file_path)
+
+    # Get the primary shop credentials
+    primary_shop_credentials = airtable.first(formula=match({"AppName": 'GPT_Content', "shop_id": shop_id_primary}))
+
+    if not primary_shop_credentials:
+        logging.error(f"No record found for shopID: {shop_id_primary}")
+        exit()
+
     # store those here
-    api_key = record['fields'].get('api_key')
-    api_secret = record['fields'].get('api_secret')
+    api_key_primary = primary_shop_credentials['fields'].get('api_key')
+    api_secret_primary = primary_shop_credentials['fields'].get('api_secret')
 
-    # Get products
-    response = get_products_with_category(client, api_key, api_secret, ToDo_category_id, done_cat_id)
+if not shop_credentials:
+    logging.error(f"No record found for shopID: {shopID}")
+    exit()
+
+# store those here
+api_key = shop_credentials['fields'].get('api_key')
+api_secret = shop_credentials['fields'].get('api_secret')
+
+for language in languages:
+
+    logging.info(f"Processing language: {language}")
+
+    if use_shopsync:
+        # Get products
+        response = get_products_with_diff(language, matched_products_shopsync, shop_credentials, primary_shop_credentials)
+
+    else:
+        # Get products
+        response = get_products_with_category(language, api_key, api_secret, ToDo_category_id, done_cat_id)
 
     for product in response:
 
         product_name = product['title']
         product_id = product['id']
+        product_content = product['content']
         if gpt_service['properties']['use_brand']:
             try:
                 brand_id = product['brand']['id']
                 brand = product['brand']['title']
-                brand_url = f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/brands/{brand_id}.json'
+                brand_url = f'https://{api_key}:{api_secret}@api.webshopapp.com/{language}/brands/{brand_id}.json'
                 brand_response = requests.request("GET", brand_url)
                 brand_data = brand_response.json()
                 brand_content = brand_data['brand']['content']
@@ -73,12 +120,19 @@ if record:
                 logging.info(f'No brand set for {product_id}')
                 continue
 
-        main_cat = get_titles_with_depth(product['categories'], 1, ToDo_category_id)
-
-        logging.info(f"Processing product: {product_name} | Main category: {main_cat}")
+        if use_shopsync:
+            main_cat = ""
+            logging.info(f"Processing product: {product_name} | Has duplicated content")
+        else:
+            main_cat = get_titles_with_depth(product['categories'], 1, ToDo_category_id)
+            logging.info(f"Processing product: {product_name} | Main category: {main_cat}")
+        
 
         if gpt_service['properties']['use_brand']:
             prompt = prompt_input.format(product_name=product_name, main_cat=main_cat, brand=brand, brand_content=brand_content)
+
+        elif use_shopsync:
+            prompt = prompt_input.format(product_content=product_content)
         
         else:
             prompt = prompt_input.format(product_name=product_name, main_cat=main_cat)
@@ -98,7 +152,7 @@ if record:
             }
         }
 
-        url = f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/products/{product_id}.json'
+        url = f'https://{api_key}:{api_secret}@api.webshopapp.com/{language}/products/{product_id}.json'
 
         # Throttle requests to one per second
         time.sleep(1)
@@ -107,8 +161,11 @@ if record:
 
         if response.ok:
             logging.info(f"updated content for product: {product_id}") 
+            
+            if use_shopsync:
+                continue
 
-            url_cat = f'https://{api_key}:{api_secret}@api.webshopapp.com/nl/categories/products.json'
+            url_cat = f'https://{api_key}:{api_secret}@api.webshopapp.com/{language}/categories/products.json'
             
             # Throttle requests to one per second
             time.sleep(1)
@@ -123,5 +180,5 @@ if record:
         else:
             logging.error(f"issue with put product: {product_id} | Main category: {main_cat}, {response.text}")
 
-else:
-    logging.warning(f"No record found for shopID: {shopID}")
+logging.info(f'finished run')
+

@@ -144,23 +144,31 @@ for language in languages:
         response = update_product(api_key, api_secret, language, product_id, generated_content)
 
         if response.ok:
+            logging.info(f"updated content for product: {product_id}") 
 
             if use_shopsync:
                 continue
-        
-            logging.info(f"updated content for product: {product_id}") 
 
             if translate_to:
 
-                language_list = translate_to.split(',')
-                for lang in language_list:
-                    promt = f'Vertaal deze tekst naar {lang}: {generated_content}'
+                for lang in translate_to:
+
+                    if lang == "de":
+                        taal = "Duits"
+
+                    if lang == "fr":
+                        taal = "Frans"
+
+                    promt = f'Vertaal deze tekst naar {taal}: {generated_content}'
                     translated_content = generate_content_from_input(prompt)
 
                     response_trans = update_product(api_key, api_secret, lang, product_id, translated_content)
 
                     if response_trans.ok:
                         logging.info(f"translated content for product: {product_id}") 
+
+                    else:
+                        logging.info((f"translated content for product: {product_id} failed in language {lang}") )
 
             # add product to done category
             logging.info(f"adding product to done category: {product_id}")
